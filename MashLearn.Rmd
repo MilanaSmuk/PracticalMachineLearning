@@ -1,0 +1,114 @@
+---
+title: "Practical Machine Learning - Assignment Project"
+author: "Milana Smuk"
+date: "15 June 2017"
+output: 
+  html_document:
+    keep_md: true
+
+---
+
+## Summary
+
+###Background
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+Data set can be found [here](https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv).
+More information about data set can be found [here](http://groupware.les.inf.puc-rio.br/har ) 
+
+
+
+##Data pre-processing
+
+For this analysis are used following packages.
+
+```{r, results='hide'}
+library(caret)
+library(randomForest)
+library(rpart)
+library(rpart.plot)
+```
+
+Downloading the data: 
+
+```{r}
+url1 <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+url2 <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+file1 <- "pml-training.csv"
+file2 <- "pml-testing.csv"
+download.file(url=url1, dest=file1, mode="wb")
+download.file(url=url2, dest=file2, mode="wb")
+training <- read.csv("pml-training.csv",row.names=1,na.strings=c("NA","#DIV/0!",""))
+testing <- read.csv("pml-testing.csv",row.names=1,na.strings=c("NA","#DIV/0!",""))
+```
+
+Inspecting of the data basic, it is shown that there are variables having a lot of missing values, variables containing NA values as well as variables not directly related to the target variable "classe". All those variables are removed; names of the sets are kept.
+
+```{r, echo=FALSE, results="hide"}
+NA_Count = sapply(1:dim(training)[2],function(x)sum(is.na(training[,x])))
+NA_list = which(NA_Count>0)
+colnames(training[,c(1:7)])
+training = training[,-NA_list]
+training = training[,-c(1:7)]
+training$classe = as.factor(training$classe)
+testing = testing[,-NA_list]
+testing = testing[,-c(1:7)]
+```
+
+Now the data set has `r dim(training)[1]` rows and `r dim(training)[2]` columns.
+
+Target variable "Classe" is a factor variable which looks like:
+
+```{r}
+table(training$classe)
+```
+
+Splitting the data set based on the target "classe" variable into training and testing part in 70:30 ratio. For the reproducibility of the analysis, seed is set as well.
+
+```{r}
+set.seed(888)
+inTrain <- createDataPartition(training$classe, p = 0.7, list = FALSE)
+trainSub <- training[inTrain, ]
+testSub<- training[-inTrain, ]
+
+```
+
+New dimension of the training set is `r dim(trainSub)[1]` .
+
+## Modelling and Testing
+
+I will try to fit a Random forest and Decision tree models and check their performances on the test subset.
+
+###1. Model - Decision Tree
+
+```{r}
+modelFitDT <- rpart(classe ~., data = trainSub, method = "class")
+predDT <- predict(modelFitDT, testSub, type = "class")
+CMDT <- confusionMatrix(predDT, testSub$classe)
+print(CMDT)
+```
+
+
+Accuracy of this model is about 71%, which means that out-of-sample error is about 29%. Additionally, Confusion matrix isn't diagonal enough, so this model isn't good enough as well. We will try with generalized boosted model next.
+ 
+###2. Model - Random Forest
+
+```{r}
+modelFitRF <- randomForest(classe ~., data = trainSub)
+predRF <- predict(modelFitRF, testSub)
+CMRF <- confusionMatrix(predRF, testSub$classe)
+print(CMRF)
+```
+
+Accuracy of this model is much better, about 99.5%, out-of-sample error is now about 0.5%. Confusion matrix is better than in first model.
+
+
+## Conclusion
+Based on modelling and testing part, we can conclude using of random forest model in testing of given test set.
+
+```{r}
+predTest <- predict(modelFitRF, testing, type = "class")
+print(predTest)
+
+```
